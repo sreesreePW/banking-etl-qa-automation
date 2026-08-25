@@ -138,6 +138,75 @@ def test_staging_only_records(spark, db_connection):
 
     staging_only_df.show(truncate=False)
 
+
     assert staging_only_count == 0, (
         f"Unexpected staging-only records found: {staging_only_count}"
+    )
+
+
+#field-level mismatch test
+def test_source_to_staging_field_mismatch(spark, db_connection):
+
+    source_df = (
+        spark.read
+        .option("header", True)
+        .option("inferSchema", True)
+        .csv("data/source/CARD_DAILY/2026-08-25/*.csv")
+    )
+
+    staging_query = """
+        SELECT
+            transaction_id,
+            customer_id,
+            account_id,
+            transaction_date,
+            feed_id,
+            transaction_type,
+            amount,
+            status,
+            update_timestamp
+        FROM workspace.banking_etl_qa.stg_transactions
+        WHERE transaction_date = '2026-08-25'
+          AND feed_id = 'CARD_DAILY'
+    """
+
+    cursor = db_connection.cursor()
+    cursor.execute(staging_query)
+
+    rows = cursor.fetchall()
+    columns = [desc[0] for desc in cursor.description]
+
+    cursor.close()
+
+    staging_df = spark.createDataFrame(
+        [tuple(row) for row in rows],
+        schema=columns
+    )
+
+    joined_df = source_df.alias("s").join(
+        staging_df.alias("t"),
+        col("s.transaction_id") == col("t.transaction_id"),
+        "inner"
+    )
+
+    mismatch_df = joined_df.filter(
+        (col("s.customer_id") != col("t.customer_id")) |
+        (col("s.account_id") != col("t.account_id")) |
+        (col("s.amount") != col("t.amount")) |
+        (col("s.status") != col("t.status")) |
+        (col("s.transaction_type") != col("t.transaction_type"))
+    )
+
+    mismatch_count = mismatch_df.count()
+
+    mismatch_df.select(
+        col("s.transaction_id").alias("transaction_id"),
+        col("s.amount").alias("source_amount"),
+        col("t.amount").alias("staging_amount"),
+        col("s.status").alias("source_status"),
+        col("t.status").alias("staging_status")
+    ).show(truncate=False)
+
+    assert mismatch_count == 0, (
+        f"Source-to-staging field mismatches found: {mismatch_count}"
     )
