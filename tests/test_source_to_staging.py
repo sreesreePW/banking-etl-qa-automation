@@ -1,3 +1,5 @@
+
+from pyspark.sql.functions import col
 from utils.db_utils import get_single_value
 from config.config import (
     BUSINESS_DATE,
@@ -5,7 +7,7 @@ from config.config import (
     STAGING_TABLE
 )
 
-
+##The first check should be source-only records: rows that exist in the source files but are missing from staging.
 def test_source_to_staging_count(source_inventory, db_connection):
 
     source_count = (
@@ -32,4 +34,110 @@ def test_source_to_staging_count(source_inventory, db_connection):
     assert source_count == staging_count, (
         f"Source-to-staging count mismatch: "
         f"source={source_count}, staging={staging_count}"
+    )
+
+
+def test_source_only_records(spark, db_connection):
+
+    source_df = (
+        spark.read
+        .option("header", True)
+        .option("inferSchema", True)
+        .csv("data/source/CARD_DAILY/2026-08-25/*.csv")
+    )
+
+    staging_query = """
+        SELECT
+            transaction_id,
+            customer_id,
+            account_id,
+            transaction_date,
+            feed_id,
+            transaction_type,
+            amount,
+            status,
+            update_timestamp
+        FROM workspace.banking_etl_qa.stg_transactions
+        WHERE transaction_date = '2026-08-25'
+          AND feed_id = 'CARD_DAILY'
+    """
+
+    cursor = db_connection.cursor()
+    cursor.execute(staging_query)
+
+    rows = cursor.fetchall()
+    columns = [desc[0] for desc in cursor.description]
+
+    cursor.close()
+
+    staging_df = spark.createDataFrame(
+        [tuple(row) for row in rows],
+        schema=columns
+    )
+
+    source_only_df = source_df.join(
+        staging_df,
+        on="transaction_id",
+        how="left_anti"
+    )
+
+    source_only_count = source_only_df.count()
+
+    source_only_df.show(truncate=False)
+
+    assert source_only_count == 0, (
+        f"Source records missing in staging: {source_only_count}"
+    )
+
+# Add the reverse check for staging-only records
+def test_staging_only_records(spark, db_connection):
+
+    source_df = (
+        spark.read
+        .option("header", True)
+        .option("inferSchema", True)
+        .csv("data/source/CARD_DAILY/2026-08-25/*.csv")
+    )
+
+    staging_query = """
+        SELECT
+            transaction_id,
+            customer_id,
+            account_id,
+            transaction_date,
+            feed_id,
+            transaction_type,
+            amount,
+            status,
+            update_timestamp
+        FROM workspace.banking_etl_qa.stg_transactions
+        WHERE transaction_date = '2026-08-25'
+          AND feed_id = 'CARD_DAILY'
+    """
+
+    cursor = db_connection.cursor()
+    cursor.execute(staging_query)
+
+    rows = cursor.fetchall()
+    columns = [desc[0] for desc in cursor.description]
+
+    cursor.close()
+
+    staging_df = spark.createDataFrame(
+        [tuple(row) for row in rows],
+        schema=columns
+    )
+
+    staging_only_df = staging_df.join(
+        source_df,
+        on="transaction_id",
+        how="left_anti"
+    )
+
+    staging_only_count = staging_only_df.count()
+
+    staging_only_df.show(truncate=False)
+
+    assert staging_only_count == 0, (
+        f"Unexpected staging-only records found: {staging_only_count}"
     )
