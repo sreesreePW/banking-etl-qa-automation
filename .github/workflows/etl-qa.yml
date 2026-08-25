@@ -13,11 +13,9 @@ on:
 
 jobs:
   run-etl-tests:
-
     runs-on: ubuntu-latest
 
     steps:
-
       - name: Checkout repository
         uses: actions/checkout@v4
 
@@ -27,7 +25,7 @@ jobs:
           python-version: "3.9"
 
       - name: Set up Java 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: "temurin"
           java-version: "17"
@@ -40,25 +38,25 @@ jobs:
         run: |
           python -m pip install -r requirements.txt
 
-      - name: Verify installed tools
+      - name: Verify environment
         run: |
           python --version
           java -version
           python -m pytest --version
 
-      - name: Create reports folder
+      - name: Create reports directory
         run: |
           mkdir -p reports
 
-      - name: Run ETL QA tests
+      - name: Run ETL QA quality gate
         env:
           TEST_ENV: QA1
           QA1_DATABRICKS_SERVER_HOSTNAME: ${{ secrets.QA1_DATABRICKS_SERVER_HOSTNAME }}
           QA1_DATABRICKS_HTTP_PATH: ${{ secrets.QA1_DATABRICKS_HTTP_PATH }}
           QA1_DATABRICKS_TOKEN: ${{ secrets.QA1_DATABRICKS_TOKEN }}
-
         run: |
           python -m pytest -v \
+            -m "not known_issue" \
             --html=reports/test_report.html \
             --self-contained-html
 

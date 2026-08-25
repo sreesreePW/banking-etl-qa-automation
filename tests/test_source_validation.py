@@ -15,25 +15,19 @@ def test_spark_session(spark):
     assert spark is not None
 
 
-def test_card_daily_source_count(db_connection):
+def test_card_daily_source_count(source_inventory):
 
-    query = f"""
-        SELECT COUNT(*)
-        FROM {TRANSACTIONS_TABLE}
-        WHERE transaction_date = '{BUSINESS_DATE}'
-          AND feed_id = '{FEED_ID}'
-    """
-
-    actual_count = get_single_value(
-        db_connection,
-        query
+    source_count = (
+        source_inventory
+        .agg({"record_count": "sum"})
+        .collect()[0][0]
     )
 
-    assert actual_count > 0, (
-        f"No source records found for "
-        f"date={BUSINESS_DATE}, feed={FEED_ID}"
-    )
+    print(f"Total source count = {source_count}")
 
+    assert source_count > 0, (
+        "No records found in CARD_DAILY source files"
+    )
 
 # Validate that at least one source file arrived
 def test_source_files_received(source_inventory):

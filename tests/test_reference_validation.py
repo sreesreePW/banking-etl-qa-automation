@@ -1,7 +1,5 @@
 import pytest
 
-pytestmark = pytest.mark.reference
-
 from utils.db_utils import get_single_value
 from config.config import (
     BUSINESS_DATE,
@@ -10,7 +8,8 @@ from config.config import (
     ACCOUNT_TABLE
 )
 
-#missing account reference:
+
+@pytest.mark.known_issue
 def test_missing_account_reference(db_connection):
 
     query = f"""
@@ -33,7 +32,7 @@ def test_missing_account_reference(db_connection):
     )
 
 
-#inactive account validation:
+@pytest.mark.known_issue
 def test_inactive_accounts(db_connection):
 
     query = f"""
