@@ -1,3 +1,11 @@
+import pytest
+
+pytestmark = pytest.mark.target
+from utils.reconciliation_utils import (
+    query_to_spark_df,
+    find_source_only,
+    find_target_only
+)
 from pyspark.sql.functions import col
 from utils.db_utils import get_single_value
 from config.config import (
@@ -69,40 +77,29 @@ def test_expected_records_missing_from_target(spark, db_connection):
           AND feed_id = '{FEED_ID}'
     """
 
-    cursor = db_connection.cursor()
-
-    cursor.execute(expected_query)
-    expected_rows = cursor.fetchall()
-
-    cursor.execute(target_query)
-    target_rows = cursor.fetchall()
-
-    cursor.close()
-
-    expected_df = spark.createDataFrame(
-        [(row[0],) for row in expected_rows],
-        ["transaction_id"]
+    expected_df = query_to_spark_df(
+        spark,
+        db_connection,
+        expected_query
     )
 
-    target_df = spark.createDataFrame(
-        [(row[0],) for row in target_rows],
-        ["transaction_id"]
+    target_df = query_to_spark_df(
+        spark,
+        db_connection,
+        target_query
     )
 
-    missing_target_df = expected_df.join(
+    missing_df = find_source_only(
+        expected_df,
         target_df,
-        on="transaction_id",
-        how="left_anti"
+        "transaction_id"
     )
 
-    missing_count = missing_target_df.count()
-
-    missing_target_df.show(truncate=False)
+    missing_count = missing_df.count()
 
     assert missing_count == 0, (
         f"Expected records missing from target: {missing_count}"
     )
-
 #Are there any unexpected records in target that should not be there?
 def test_unexpected_target_only_records(spark, db_connection):
 
@@ -124,35 +121,25 @@ def test_unexpected_target_only_records(spark, db_connection):
           AND feed_id = '{FEED_ID}'
     """
 
-    cursor = db_connection.cursor()
-
-    cursor.execute(expected_query)
-    expected_rows = cursor.fetchall()
-
-    cursor.execute(target_query)
-    target_rows = cursor.fetchall()
-
-    cursor.close()
-
-    expected_df = spark.createDataFrame(
-        [(row[0],) for row in expected_rows],
-        ["transaction_id"]
+    expected_df = query_to_spark_df(
+        spark,
+        db_connection,
+        expected_query
     )
 
-    target_df = spark.createDataFrame(
-        [(row[0],) for row in target_rows],
-        ["transaction_id"]
+    target_df = query_to_spark_df(
+        spark,
+        db_connection,
+        target_query
     )
 
-    target_only_df = target_df.join(
+    target_only_df = find_target_only(
         expected_df,
-        on="transaction_id",
-        how="left_anti"
+        target_df,
+        "transaction_id"
     )
 
     target_only_count = target_only_df.count()
-
-    target_only_df.show(truncate=False)
 
     assert target_only_count == 0, (
         f"Unexpected target-only records found: {target_only_count}"

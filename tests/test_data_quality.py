@@ -1,3 +1,7 @@
+
+import pytest
+
+pytestmark = pytest.mark.data_quality
 from utils.db_utils import get_single_value
 from config.config import (
     BUSINESS_DATE,

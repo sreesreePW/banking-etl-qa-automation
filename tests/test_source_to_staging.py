@@ -1,4 +1,6 @@
+import pytest
 
+pytestmark = pytest.mark.source_to_staging
 from pyspark.sql.functions import col
 from utils.db_utils import get_single_value
 from config.config import (

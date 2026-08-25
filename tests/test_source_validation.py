@@ -1,3 +1,7 @@
+import pytest
+
+pytestmark = pytest.mark.source
+
 from pyspark.sql.functions import col
 from utils.db_utils import get_single_value
 from config.config import (
