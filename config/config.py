@@ -1,8 +1,9 @@
 import os
 
-BUSINESS_DATE = "2026-08-21"
+BUSINESS_DATE = "2026-08-25"
 FEED_ID = "CARD_DAILY"
 
+STAGING_TABLE = "workspace.banking_etl_qa.stg_transactions"
 TRANSACTIONS_TABLE = "workspace.banking_etl_qa.transactions"
 ACCOUNT_TABLE = "workspace.banking_etl_qa.account_ref"
 CUSTOMER_TABLE = "workspace.banking_etl_qa.customer_ref"
